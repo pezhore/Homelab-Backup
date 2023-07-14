@@ -1,0 +1,122 @@
+---
+- name: Install and run Restic remotely
+  hosts: lab
+  become: yes
+
+  vars:
+    restic_version: 0.15.2
+    restic_checksum: sha256:44ce3367b0b413ad48757de8e2a1f4e2c30137e7cdc77db64906f3eb7087b78f
+    restic_access_key: "{{ lookup('hashi_vault', 'secret=homelab/data/wasabi').restic_access_key}}"
+    restic_secret_key: "{{ lookup('hashi_vault', 'secret=homelab/data/wasabi').restic_secret_key}}"
+    restic_repository: "{{ lookup('hashi_vault', 'secret=homelab/data/wasabi').restic_repository}}"
+    restic_password: "{{ lookup('hashi_vault', 'secret=kv/data/zshrc').RESTIC_PASSWORD}}"
+
+  tasks:
+
+    - name: Check if the restic binary exists
+      ansible.builtin.stat:
+        path: /etc/restic/restic
+      register: restic_bin
+    
+    - name: Ensure lbzip2 is installed
+      ansible.builtin.package:
+        name: lbzip2
+        state: latest
+
+    - name: Download and extracty restic binaries
+      block:
+        - name: Download Restic binaries
+          ansible.builtin.get_url:
+            dest: /tmp/restic.bz2
+            url: https://github.com/restic/restic/releases/download/v{{ restic_version }}/restic_{{ restic_version }}_linux_amd64.bz2
+            checksum: "{{ restic_checksum }}"
+        
+        - name: Extract restic binary
+          ansible.builtin.command: lbzip2 -d /tmp/restic.bz2
+        
+        - name: Ensure the /etc/restic folder exists
+          ansible.builtin.file:
+            path: /etc/restic
+            state: directory
+        
+      when: not restic_bin.stat.exists
+
+    - name: Copy the restic binary to /etc/restic
+      ansible.builtin.copy:
+        src: /tmp/restic
+        dest: /etc/restic/restic
+        remote_src: yes
+        mode: 0755
+    
+    - name: Copy up exclude/include files - freeipa
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/etc/restic/{{ item.dest }}"
+        remote_src: false
+      with_items:
+        - { src: freeipa-exclude-files, dest: exclude-files }
+        - { src: freeipa-include-files, dest: include-files }
+      when: inventory_hostname in groups['freeipa']
+    
+    - name: Copy up exclude/include files - kubernetes
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/etc/restic/{{ item.dest }}"
+        remote_src: false
+      with_items:
+        - { src: k8s-exclude-files, dest: exclude-files }
+        - { src: k8s-include-files, dest: include-files }
+      when: inventory_hostname in groups['kubernetes']
+
+    - name: Copy up exclude/include files - minecraft
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/etc/restic/{{ item.dest }}"
+        remote_src: false
+      with_items:
+        - { src: minecraft-exclude-files, dest: exclude-files }
+        - { src: minecraft-include-files, dest: include-files }
+      when: inventory_hostname in groups['minecraft']
+
+    - name: Copy up exclude/include files - netbox
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/etc/restic/{{ item.dest }}"
+        remote_src: false
+      with_items:
+        - { src: netbox-exclude-files, dest: exclude-files }
+        - { src: netbox-include-files, dest: include-files }
+      when: inventory_hostname in groups['netbox']
+    
+    - name: Copy up exclude/include files - pdns
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/etc/restic/{{ item.dest }}"
+        remote_src: false
+      with_items:
+        - { src: pdns-exclude-files, dest: exclude-files }
+        - { src: pdns-include-files, dest: include-files }
+      when: inventory_hostname in groups['pdns']
+    
+    - name: Copy up exclude/include files - plex
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/etc/restic/{{ item.dest }}"
+        remote_src: false
+      with_items:
+        - { src: plex-exclude-files, dest: exclude-files }
+        - { src: plex-include-files, dest: include-files }
+      when: inventory_hostname in groups['plex']
+    
+    - name: Run restic backup
+      ansible.builtin.command:
+        cmd: /etc/restic/restic backup --files-from /etc/restic/include-files --exclude-file /etc/restic/exclude-files
+      environment:
+        - AWS_ACCESS_KEY_ID: "{{ restic_access_key }}"
+        - AWS_SECRET_ACCESS_KEY: "{{ restic_secret_key }}"
+        - RESTIC_REPOSITORY: "{{ restic_repository }}"
+        - RESTIC_PASSWORD: "{{ restic_password }}"
+      register: restic
+    
+    - debug:
+        msg: "{{ restic.stdout }}"
