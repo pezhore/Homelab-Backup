@@ -1,6 +1,6 @@
 ---
 - name: Install and run Restic remotely
-  hosts: lab
+  hosts: lab, plex
   become: yes
 
   vars:
