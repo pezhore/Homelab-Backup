@@ -114,6 +114,16 @@
         - { src: plex-include-files, dest: include-files }
       when: inventory_hostname in groups['plex']
 
+    - name: Copy up exclude/include files - keycloak
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/etc/restic/{{ item.dest }}"
+        remote_src: false
+      with_items:
+        - { src: keycloak-exclude-files, dest: exclude-files }
+        - { src: keycloak-include-files, dest: include-files }
+      when: inventory_hostname in groups['keycloak']
+      
     - name: Run restic backup
       ansible.builtin.command:
         cmd: /etc/restic/restic backup --files-from /etc/restic/include-files --exclude-file /etc/restic/exclude-files
