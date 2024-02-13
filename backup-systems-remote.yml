@@ -4,12 +4,13 @@
   become: yes
 
   vars:
-    restic_version: 0.15.2
-    restic_checksum: sha256:44ce3367b0b413ad48757de8e2a1f4e2c30137e7cdc77db64906f3eb7087b78f
+    restic_version: 0.16.4
+    restic_checksum: sha256:3d4d43c169a9e28ea76303b1e8b810f0dcede7478555fdaa8959971ad499e324
     restic_access_key: "{{ lookup('hashi_vault', 'secret=homelab/data/wasabi').restic_access_key}}"
     restic_secret_key: "{{ lookup('hashi_vault', 'secret=homelab/data/wasabi').restic_secret_key}}"
     restic_repository: "{{ lookup('hashi_vault', 'secret=homelab/data/wasabi').restic_repository}}"
     restic_password: "{{ lookup('hashi_vault', 'secret=kv/data/zshrc').RESTIC_PASSWORD}}"
+    upgrade_restic: true
 
   tasks:
 
@@ -25,6 +26,11 @@
 
     - name: Download and extracty restic binaries
       block:
+        - name: Delete /tmp/restic
+          ansible.builtin.file:
+            path: /tmp/restic
+            state: absent
+
         - name: Download Restic binaries
           ansible.builtin.get_url:
             dest: /tmp/restic.bz2
@@ -45,7 +51,7 @@
             dest: /etc/restic/restic
             remote_src: yes
             mode: 0755
-      when: not restic_bin.stat.exists
+      when: not restic_bin.stat.exists or upgrade_restic
 
 
     - name: Copy up exclude/include files - freeipa
