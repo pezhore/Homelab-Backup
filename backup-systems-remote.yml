@@ -1,6 +1,6 @@
 ---
 - name: Install and run Restic remotely
-  hosts: lab, plex
+  hosts: lab, plex, pihole
   become: yes
 
   vars:
@@ -52,6 +52,16 @@
             remote_src: yes
             mode: 0755
       when: not restic_bin.stat.exists or upgrade_restic
+
+    - name: Copy up exclude/include files - pihole
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/etc/restic/{{ item.dest }}"
+        remote_src: false
+      with_items:
+        - { src: pihole-exclude-files, dest: exclude-files }
+        - { src: pihole-include-files, dest: include-files }
+      when: inventory_hostname == "pihole.lan.pezlab.dev"
 
 
     - name: Copy up exclude/include files - freeipa
@@ -122,8 +132,8 @@
       with_items:
         - { src: keycloak-exclude-files, dest: exclude-files }
         - { src: keycloak-include-files, dest: include-files }
-      when: inventory_hostname in groups['keycloak']
-      
+      when: inventory_hostname == "keycloak.lan.pezlab.dev"
+
     - name: Run restic backup
       ansible.builtin.command:
         cmd: /etc/restic/restic backup --files-from /etc/restic/include-files --exclude-file /etc/restic/exclude-files
@@ -150,7 +160,7 @@
       run_once: true
       become: false
       register: forget
-    
+
     - name: Restic Forget stdout results
       debug:
         msg: "{{ forget.stdout_lines }}"
